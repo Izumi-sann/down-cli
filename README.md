@@ -11,26 +11,42 @@ rm "$tmp"
 execute the following powershell script to download.
 Then down-cli can be run from any cli environment
 ``` PS
+$ErrorActionPreference = 'Stop'
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\down-cli'
-$gitRoot = 'C:\Program Files\Git'
+New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+$gitPath = (Get-Command git.exe -ErrorAction Stop).Source
+$gitRoot = Split-Path (Split-Path $gitPath -Parent) -Parent
 $bash = Join-Path $gitRoot 'bin\bash.exe'
 $cygpath = Join-Path $gitRoot 'usr\bin\cygpath.exe'
+if (-not (Test-Path $bash)) {
+    throw "Git Bash non trovato: $bash"
+}
 $scriptPath = Join-Path $installDir 'down-cli.sh'
+Invoke-WebRequest `
+    -Uri 'https://raw.githubusercontent.com/Izumi-sann/down-cli/main/down-cli.sh' `
+    -OutFile $scriptPath
 $scriptPosix = (& $cygpath -u $scriptPath).Trim()
-$cmdContent = @"
-@echo off
-"$bash" "$scriptPosix" %*
-"@
-Set-Content -Encoding ASCII (Join-Path $installDir 'down-cli.cmd') $cmdContent
-$wrapperPath = Join-Path $installDir 'down-cli'
+$cmdContent = "@echo off`r`n`"$bash`" `"$scriptPosix`" %*"
+Set-Content -Encoding ASCII -Path (Join-Path $installDir 'down-cli.cmd') -Value $cmdContent
 $wrapperContent = @'
 #!/usr/bin/env bash
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 exec bash "$script_dir/down-cli.sh" "$@"
 '@
-Set-Content -Encoding ASCII $wrapperPath $wrapperContent
+$wrapperPath = Join-Path $installDir 'down-cli'
+Set-Content -Encoding ASCII -Path $wrapperPath -Value $wrapperContent
 $wrapperPosix = (& $cygpath -u $wrapperPath).Trim()
 & $bash -c 'chmod +x "$1"' _ $wrapperPosix
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+$pathEntries = @($userPath -split ';' | Where-Object { $_ })
+if ($pathEntries -notcontains $installDir) {
+    $pathEntries += $installDir
+    [Environment]::SetEnvironmentVariable('Path', ($pathEntries -join ';'), 'User')
+}
+if (($env:Path -split ';') -notcontains $installDir) {
+    $env:Path = "$installDir;$env:Path"
+}
+Get-Command down-cli
 ```
 
 ## Usage  
