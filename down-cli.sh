@@ -16,6 +16,7 @@ Options:
   -V, --video                    Download video (default)
   -D, --direcctory DIR           Download into DIR (--directory also works)
   -f, --format EXT               Audio format in music mode; container in video mode
+  -U, --update                   Update down-cli and exit
   -h, --help                     Show this help
 EOF
 }
@@ -26,8 +27,61 @@ error() {
 	exit 2
 }
 
+update_script() {
+	local script_path script_dir temp_path update_url
+	update_url='https://raw.githubusercontent.com/Izumi-sann/down-cli/main/down-cli.sh'
+	script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd) || {
+		printf 'Error: Could not locate down-cli.\n' >&2
+		return 1
+	}
+	script_path="$script_dir/$(basename -- "${BASH_SOURCE[0]}")"
+	temp_path=$(mktemp "${script_path}.XXXXXX") || {
+		printf 'Error: Could not create a temporary update file.\n' >&2
+		return 1
+	}
+
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --output "$temp_path" "$update_url" || {
+			rm -f -- "$temp_path"
+			printf 'Error: Could not download the update.\n' >&2
+			return 1
+		}
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q -O "$temp_path" "$update_url" || {
+			rm -f -- "$temp_path"
+			printf 'Error: Could not download the update.\n' >&2
+			return 1
+		}
+	else
+		rm -f -- "$temp_path"
+		printf 'Error: Install curl or wget to update down-cli.\n' >&2
+		return 1
+	fi
+
+	if ! bash -n "$temp_path"; then
+		rm -f -- "$temp_path"
+		printf 'Error: The downloaded update failed its syntax check.\n' >&2
+		return 1
+	fi
+
+	chmod +x "$temp_path" && mv -f -- "$temp_path" "$script_path" || {
+		rm -f -- "$temp_path"
+		printf 'Error: Could not install the update.\n' >&2
+		return 1
+	}
+	printf 'Updated down-cli: %s\n' "$script_path"
+}
+
+if (($# == 1)) && [[ $1 == -U || $1 == --update ]]; then
+	update_script
+	exit $?
+fi
+
 while (($#)); do
 	case "$1" in
+		-U|--update)
+			error "Use --update by itself, without other options or URLs"
+			;;
 		-M|--music)
 			mode=music
 			shift
@@ -98,10 +152,18 @@ fi
 
 mkdir -p -- "$directory" || error "Could not create download directory: $directory"
 
+yt_dlp_options=(
+	--quiet
+	--progress
+	--no-warnings
+	--print 'after_move:File location: %(filepath)s'
+	--paths "$directory"
+)
+
 if [[ $mode == music ]]; then
-	exec yt-dlp --extract-audio --audio-format "$file_format" --paths "$directory" -- "${urls[@]}"
+	exec yt-dlp "${yt_dlp_options[@]}" --extract-audio --audio-format "$file_format" -- "${urls[@]}"
 elif [[ -n $file_format ]]; then
-	exec yt-dlp --remux-video "$file_format" --paths "$directory" -- "${urls[@]}"
+	exec yt-dlp "${yt_dlp_options[@]}" --remux-video "$file_format" -- "${urls[@]}"
 else
-	exec yt-dlp --paths "$directory" -- "${urls[@]}"
+	exec yt-dlp "${yt_dlp_options[@]}" -- "${urls[@]}"
 fi
