@@ -9,7 +9,7 @@ urls=()
 
 usage() {
 	cat <<'EOF'
-Usage: down-cli.sh [OPTIONS] URL [URL ...]
+Usage: down-cli [OPTIONS] URL [URL ...]
 
 Options:
   -M, --music                    Extract audio (defaults to mp3)
