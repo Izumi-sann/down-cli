@@ -49,6 +49,19 @@ if (($env:Path -split ';') -notcontains $installDir) {
 Get-Command down-cli
 ```
 
+### iOS (a-Shell)
+a-Shell has no real bash, so `down-cli.sh` can't run there directly. Use the
+Python port instead — a-Shell ships ffmpeg natively and has python3/pip built in.
+``` sh
+pip install yt-dlp
+mkdir -p ~/Documents/bin
+curl -fsSL https://raw.githubusercontent.com/Izumi-sann/down-cli/main/down-cli-ash.py -o ~/Documents/bin/down-cli-ash.py
+echo "alias down-cli='python3 ~/Documents/bin/down-cli-ash.py'" >> ~/.profile
+```
+Restart a-Shell (or run `source ~/.profile`) to pick up the alias, then use it
+exactly like the regular `down-cli`. If audio/remux modes fail, run
+`ffmpeg -version` first to confirm a-Shell's native ffmpeg is reachable.
+
 ## Usage  
 down-cli [OPTIONS] URL [URL ...]
 
